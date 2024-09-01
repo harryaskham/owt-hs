@@ -126,3 +126,24 @@ instance (HttpMethod method, Owt method ByteString a) => Owt method Text a where
   owt' request client = do
     r <- owt' @method @ByteString @a request client
     return $ r <&> decodeUtf8
+
+instance (HttpMethod method, MonadIO m) => Owt method (ConduitT ByteString Void (ResourceT IO) a -> m a) client where
+  owt' request client =
+    return $ \handler -> do
+      rE <-
+        liftIO $
+          try $
+            runReq defaultHttpConfig $
+              reqBr
+                (owtMethod @method)
+                (client ^. owtClientAddress)
+                (owtRequestBody @method request)
+                (owtOptions @method request)
+                ( \response -> do
+                    runConduitRes $
+                      responseBodySource response
+                        .| handler
+                )
+      return $ case rE of
+        Left (e :: SomeException) -> Left $ OwtError $ show e
+        Right r -> Right $ responseBody r
