@@ -41,7 +41,7 @@ instance Default OwtRequest where
 
 data OwtClient scheme = OwtClient
   { _owtClientAddress :: !(Url scheme),
-    _owtClientPort :: !Int
+    _owtClientPort :: !(Option scheme)
   }
 
 makeLenses ''OwtClient
@@ -52,11 +52,11 @@ class OwtOptions method scheme a where
   owtOptions :: a -> OwtRequest -> Option scheme
 
 instance OwtOptions POST scheme (OwtClient scheme) where
-  owtOptions client _ = port $ client ^. owtClientPort
+  owtOptions client _ = client ^. owtClientPort
 
 instance OwtOptions GET scheme (OwtClient scheme) where
   owtOptions client request =
-    port (client ^. owtClientPort)
+    client ^. owtClientPort
       <> ("code_b64" =: (request ^. owtRequestCodeB64))
       <> ("fn_name" =: (request ^. owtRequestFnName))
       <> ("kwargs_b64" =: (request ^. owtRequestKwargsB64))

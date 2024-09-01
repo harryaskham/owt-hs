@@ -39,6 +39,7 @@ dependencies:
   - url
   - modern-uri
   - req
+  - optparse-applicative
   - base64
 
 default-extensions:

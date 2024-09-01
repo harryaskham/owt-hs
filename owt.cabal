@@ -100,6 +100,7 @@ library
     , lens-aeson
     , lifted-base
     , modern-uri
+    , optparse-applicative
     , relude
     , req
     , req-conduit
@@ -198,6 +199,7 @@ executable owt
     , lens-aeson
     , lifted-base
     , modern-uri
+    , optparse-applicative
     , owt
     , relude
     , req
