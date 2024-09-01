@@ -1,0 +1,8 @@
+multi-repl: true
+
+packages:
+  ./owt.cabal
+
+package zlib
+  extra-include-dirs: /home/harry/.nix-profile/include
+  extra-lib-dirs: /home/harry/.nix-profile/lib

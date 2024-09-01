@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:owt"
+
+    - path: "./app/Main.hs"
+      component: "owt:exe:owt"

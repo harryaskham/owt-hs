@@ -1,0 +1,143 @@
+name: owt
+version: 0.1.0.0
+github: harryaskham/owt-hs
+author: "Harry Askham"
+maintainer: "harryaskham@gmail.com"
+language: Haskell2010
+
+dependencies:
+  - name: base
+    version: "==4.19.0.0"
+    mixin:
+      - hiding (Prelude)
+  - name: relude
+    mixin:
+      - (Relude as Prelude,
+         Relude.Unsafe)
+  - aeson
+  - aeson-casing
+  - aeson-pretty
+  - lens-aeson
+  - deriving-aeson
+  - text
+  - lens
+  - data-default
+  - bytestring
+  - lifted-base
+  - http-client
+  - http-types
+  - exceptions
+  - conduit
+  - req-conduit
+  - xml-conduit
+  - http-conduit
+  - unliftio
+  - binary
+  - uri-encode
+  - wai
+  - wai-extra
+  - url
+  - modern-uri
+  - req
+  - base64
+
+default-extensions:
+  - OverloadedStrings
+  - OverloadedLabels
+  - TupleSections
+  - ViewPatterns
+  - StandaloneKindSignatures
+  - DerivingVia
+  - LambdaCase
+  - MultiWayIf
+  - QuantifiedConstraints
+  - ConstraintKinds
+  - MonadComprehensions
+  - UnicodeSyntax
+  - BlockArguments
+  - ImportQualifiedPost
+  - EmptyCase
+  - StarIsType
+  - PostfixOperators
+  - FlexibleContexts
+  - FlexibleInstances
+  - InstanceSigs
+  - MultiParamTypeClasses
+  - UndecidableInstances
+  - QuasiQuotes
+  - NamedFieldPuns
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveAnyClass
+  - DeriveTraversable
+  - DerivingStrategies
+  - GeneralizedNewtypeDeriving
+  - StandaloneDeriving
+  - ScopedTypeVariables
+  - RankNTypes
+  - TypeApplications
+  - TypeOperators
+  - TypeFamilies
+  - ApplicativeDo
+  - DefaultSignatures
+  - PatternSynonyms
+  - ExistentialQuantification
+  - FunctionalDependencies
+  - GADTs
+  - DataKinds
+  - PolyKinds
+  - StrictData
+  - TemplateHaskell
+  - RecordWildCards
+  - NamedWildCards
+  - PartialTypeSignatures
+  - AllowAmbiguousTypes
+  - ImpredicativeTypes
+  - UndecidableSuperClasses
+
+ghc-options:
+  - -fprint-potential-instances
+  - -Weverything
+  - -Wno-unrecognised-warning-flags
+  - -Wno-star-is-type
+  - -Wno-missing-signatures
+  - -Wno-orphans
+  - -Wno-implicit-prelude
+  - -Wno-unused-imports
+  - -Wno-unused-packages
+  - -Wno-missing-kind-signatures
+  - -Wno-missing-poly-kind-signatures
+  - -Wno-term-variable-capture
+  - -Wno-missing-export-lists
+  - -Wno-missing-deriving-strategies
+  - -Wno-missing-safe-haskell-mode
+  - -Wno-missing-exported-signatures
+  - -Wno-missing-import-lists
+  - -Wno-missed-specialisations
+  - -Wno-all-missed-specialisations
+  - -Wno-unsafe
+  - -Wno-safe
+  - -Wno-deriving-defaults
+  - -Wno-missing-local-signatures
+  - -Wno-monomorphism-restriction
+  - -Wno-missing-home-modules
+  - -Wno-name-shadowing
+  - -Wno-type-defaults
+  - -Wno-incomplete-patterns
+  - -Wno-incomplete-uni-patterns
+  - -Wno-prepositive-qualified-module
+  - -Wno-missing-role-annotations
+  - -Wno-operator-whitespace
+
+
+library:
+  source-dirs: src
+  exposed-modules: Owt
+
+executables:
+  owt:
+    main: Main.hs
+    source-dirs: app
+    dependencies: owt
