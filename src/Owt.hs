@@ -15,19 +15,20 @@ import Data.Default
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Deriving.Aeson
+import Deriving.Aeson.Stock
 import Network.HTTP.Req hiding (decompress)
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Relude.Unsafe qualified as U
 
 data OwtRequest = OwtRequest
   { _owtRequestCodeB64 :: !Text,
-    _owtRequestFnName :: !Text,
-    _owtRequestKwargsB64 :: !Text
+    _owtRequestKwargsB64 :: !Text,
+    _owtRequestFnName :: !Text
   }
   deriving (Show, Eq, Generic)
   deriving
     (FromJSON, ToJSON)
-    via CustomJSON '[FieldLabelModifier '[StripPrefix "_owtRequest", CamelToSnake]] OwtRequest
+    via PrefixedSnake "_owtRequest" OwtRequest
 
 makeLenses ''OwtRequest
 
