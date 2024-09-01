@@ -20,9 +20,9 @@ import Network.HTTP.Req.Conduit (responseBodySource)
 import Relude.Unsafe qualified as U
 
 data OwtRequest = OwtRequest
-  { _owtRequestCodeB64 :: Text,
-    _owtRequestFnName :: Text,
-    _owtRequestKwargsB64 :: Text
+  { _owtRequestCodeB64 :: !Text,
+    _owtRequestFnName :: !Text,
+    _owtRequestKwargsB64 :: !Text
   }
   deriving (Show, Eq, Generic)
   deriving
@@ -40,13 +40,13 @@ instance Default OwtRequest where
       }
 
 data OwtClient scheme = OwtClient
-  { _owtClientAddress :: Url scheme,
-    _owtClientPort :: Int
+  { _owtClientAddress :: !(Url scheme),
+    _owtClientPort :: !Int
   }
 
 makeLenses ''OwtClient
 
-data OwtError = OwtError Text deriving (Show)
+newtype OwtError = OwtError Text deriving (Show)
 
 class OwtOptions method scheme a where
   owtOptions :: a -> OwtRequest -> Option scheme
@@ -56,7 +56,7 @@ instance OwtOptions POST scheme (OwtClient scheme) where
 
 instance OwtOptions GET scheme (OwtClient scheme) where
   owtOptions client request =
-    (port $ client ^. owtClientPort)
+    port (client ^. owtClientPort)
       <> ("code_b64" =: (request ^. owtRequestCodeB64))
       <> ("fn_name" =: (request ^. owtRequestFnName))
       <> ("kwargs_b64" =: (request ^. owtRequestKwargsB64))
@@ -89,8 +89,8 @@ class (HttpMethod method) => Owt (method :: Type) out a where
   owt code kwargs client = do
     let request =
           OwtRequest
-            { _owtRequestCodeB64 = (B64.extractBase64 $ B64.encodeBase64 $ TE.encodeUtf8 code),
-              _owtRequestKwargsB64 = (B64.extractBase64 $ B64.encodeBase64 $ BSL.toStrict . A.encode $ kwargs),
+            { _owtRequestCodeB64 = B64.extractBase64 $ B64.encodeBase64 $ TE.encodeUtf8 code,
+              _owtRequestKwargsB64 = B64.extractBase64 $ B64.encodeBase64 $ BSL.toStrict . A.encode $ kwargs,
               _owtRequestFnName = "run"
             }
     owt' @method @out @a request client
