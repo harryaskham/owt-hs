@@ -100,11 +100,13 @@ library
     , lens-aeson
     , lifted-base
     , modern-uri
+    , monad-control
     , optparse-applicative
     , relude
     , req
     , req-conduit
     , text
+    , transformers-base
     , unliftio
     , uri-encode
     , url
@@ -199,12 +201,14 @@ executable owt
     , lens-aeson
     , lifted-base
     , modern-uri
+    , monad-control
     , optparse-applicative
     , owt
     , relude
     , req
     , req-conduit
     , text
+    , transformers-base
     , unliftio
     , uri-encode
     , url

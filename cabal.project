@@ -4,5 +4,8 @@ packages:
   ./owt.cabal
 
 package zlib
+  extra-lib-dirs: /run/current-system/sw/share/nix-ld/lib
   extra-include-dirs: /home/harry/.nix-profile/include
   extra-lib-dirs: /home/harry/.nix-profile/lib
+  extra-include-dirs: /home/ema/.nix-profile/include
+  extra-lib-dirs: /home/ema/.nix-profile/lib

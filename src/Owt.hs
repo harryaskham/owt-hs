@@ -1,8 +1,10 @@
 module Owt where
 
 import Conduit
-import Control.Exception.Lifted (SomeException, try)
+import Control.Exception.Lifted (SomeException, throwIO, try)
 import Control.Lens
+import Control.Monad.Base (MonadBase)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Aeson (decode, encode)
 import Data.Aeson qualified as A
 import Data.Base64.Types qualified as B64
@@ -16,6 +18,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Deriving.Aeson
 import Deriving.Aeson.Stock
+import Network.HTTP.Client qualified as L
 import Network.HTTP.Req hiding (decompress)
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Relude.Unsafe qualified as U
@@ -47,7 +50,9 @@ data OwtClient scheme = OwtClient
 
 makeLenses ''OwtClient
 
-newtype OwtError = OwtError Text deriving (Show)
+newtype OwtError = OwtError Text deriving (Show, Eq)
+
+instance Exception OwtError
 
 class OwtOptions method scheme a where
   owtOptions :: a -> OwtRequest -> Option scheme
@@ -84,9 +89,14 @@ instance OwtMethod GET where
 instance OwtMethod POST where
   owtMethod = POST
 
-class (HttpMethod method) => Owt (method :: Type) out a where
-  owt :: (MonadIO m, ToJSON kwargs) => Text -> kwargs -> a -> m (Either OwtError out)
-  default owt :: (MonadIO m, ToJSON kwargs) => Text -> kwargs -> a -> m (Either OwtError out)
+class
+  ( HttpMethod method,
+    MonadBaseControl IO m
+  ) =>
+  Owt (method :: Type) out m client
+  where
+  owt :: (ToJSON kwargs) => Text -> kwargs -> client -> m out
+  default owt :: (ToJSON kwargs) => Text -> kwargs -> client -> m out
   owt code kwargs client = do
     let request =
           OwtRequest
@@ -94,56 +104,78 @@ class (HttpMethod method) => Owt (method :: Type) out a where
               _owtRequestKwargsB64 = B64.extractBase64 $ B64.encodeBase64 $ BSL.toStrict . A.encode $ kwargs,
               _owtRequestFnName = "run"
             }
-    owt' @method @out @a request client
+    owt' @method @out @m @client request client
 
-  owt' :: (MonadIO m) => OwtRequest -> a -> m (Either OwtError out)
+  owt' :: OwtRequest -> client -> m out
+
+instance (Owt method out m clientA, Owt method out m clientB) => Owt method out m (Either clientA clientB) where
+  owt' request (Left client) = owt' @method request client
+  owt' request (Right client) = owt' @method request client
+
+handleReqError :: (MonadBaseControl IO m) => m a -> m a
+handleReqError action = do
+  rE <- try action
+  case rE of
+    Left (e :: HttpException) -> throwIO (OwtError (show e))
+    Right r -> return r
+
+instance
+  ( HttpMethod (method :: Type),
+    OwtMethod method,
+    OwtRequestBody method,
+    OwtOptions method scheme (OwtClient scheme),
+    HttpBody (OwtRequestBodyF method),
+    HttpBodyAllowed (AllowsBody method) (ProvidesBody (OwtRequestBodyF method)),
+    MonadBaseControl IO m,
+    MonadIO m
+  ) =>
+  Owt method ByteString m (OwtClient scheme)
+  where
+  owt' request client = handleReqError $ do
+    liftIO $
+      runReq defaultHttpConfig $
+        req
+          (owtMethod @method)
+          (client ^. owtClientAddress)
+          (owtRequestBody @method request)
+          bsResponse
+          (owtOptions @method @scheme client request)
+          <&> responseBody
+
+instance (HttpMethod method, MonadBaseControl IO m, Owt method ByteString m client) => Owt method Text m client where
+  owt' request client =
+    owt' @method @ByteString @m @client request client <&> decodeUtf8
+
+type OwtStreamHandler m a =
+  ConduitT ByteString Void (ResourceT m) a
+
+type OwtStream sm m a = OwtStreamHandler sm a -> m a
+
+instance (MonadIO m) => MonadHttp (ConduitM i o (ResourceT m)) where
+  handleHttpException = liftIO . throwIO
 
 instance
   ( HttpMethod method,
+    HttpBody (OwtRequestBodyF method),
+    HttpBodyAllowed
+      (AllowsBody method)
+      (ProvidesBody (OwtRequestBodyF method)),
     OwtMethod method,
     OwtRequestBody method,
-    HttpBody (OwtRequestBodyF method),
-    HttpBodyAllowed (AllowsBody method) (ProvidesBody (OwtRequestBodyF method))
+    OwtOptions method scheme (OwtClient scheme),
+    MonadBaseControl IO m,
+    MonadIO m,
+    MonadUnliftIO m
   ) =>
-  Owt method ByteString (OwtClient scheme)
+  Owt method (OwtStream m m a) m (OwtClient scheme)
   where
-  owt' request client = do
-    rE <-
-      liftIO $
-        try $
-          runReq defaultHttpConfig $
-            req
-              (owtMethod @method)
-              (client ^. owtClientAddress)
-              (owtRequestBody @method request)
-              bsResponse
-              (owtOptions @POST @scheme client request)
-    return $ case rE of
-      Left (e :: SomeException) -> Left $ OwtError $ show e
-      Right r -> Right $ responseBody r
-
-instance (HttpMethod method, Owt method ByteString a) => Owt method Text a where
-  owt' request client = do
-    r <- owt' @method @ByteString @a request client
-    return $ r <&> decodeUtf8
-
-instance (HttpMethod method, MonadIO m) => Owt method (ConduitT ByteString Void (ResourceT IO) a -> m a) client where
-  owt' request client =
-    return $ \handler -> do
-      rE <-
-        liftIO $
-          try $
-            runReq defaultHttpConfig $
-              reqBr
-                (owtMethod @method)
-                (client ^. owtClientAddress)
-                (owtRequestBody @method request)
-                (owtOptions @method request)
-                ( \response -> do
-                    runConduitRes $
-                      responseBodySource response
-                        .| handler
-                )
-      return $ case rE of
-        Left (e :: SomeException) -> Left $ OwtError $ show e
-        Right r -> Right $ responseBody r
+  owt' request client = return $ \(handler :: OwtStreamHandler m a) ->
+    handleReqError $
+      runConduitRes $
+        req'
+          (owtMethod @method)
+          (client ^. owtClientAddress)
+          (owtRequestBody @method request)
+          (owtOptions @method client request)
+          (\request manager -> bracketP (L.responseOpen request manager) L.responseClose responseBodySource)
+          .| handler

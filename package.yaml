@@ -24,6 +24,8 @@ dependencies:
   - data-default
   - bytestring
   - lifted-base
+  - transformers-base
+  - monad-control
   - http-client
   - http-types
   - exceptions
