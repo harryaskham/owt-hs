@@ -22,6 +22,7 @@ import Network.HTTP.Client qualified as L
 import Network.HTTP.Req hiding (decompress)
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Relude.Unsafe qualified as U
+import Text.URI
 
 data OwtRequest = OwtRequest
   { _owtRequestCodeB64 :: !Text,
@@ -49,6 +50,14 @@ data OwtClient scheme = OwtClient
   }
 
 makeLenses ''OwtClient
+
+mkOwtClient :: (MonadThrow m) => Text -> m (Either (OwtClient 'Http) (OwtClient 'Https))
+mkOwtClient address = do
+  uri <- mkURI address
+  return $ case useURI uri of
+    Nothing -> error $ "Invalid address: " <> show address
+    Just (Left (u, p)) -> Left (OwtClient u p)
+    Just (Right (u, p)) -> Right (OwtClient u p)
 
 newtype OwtError = OwtError Text deriving (Show, Eq)
 

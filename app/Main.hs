@@ -1,22 +1,11 @@
-{-# LANGUAGE ApplicativeDo #-}
-
 module Main where
 
 import Conduit
-import Control.Monad.Catch
 import Data.Text qualified as T
 import Network.HTTP.Req
 import Options.Applicative
 import Owt
 import Text.URI
-
-mkOwtClient :: (MonadThrow m) => Text -> m (Either (OwtClient 'Http) (OwtClient 'Https))
-mkOwtClient address = do
-  uri <- mkURI address
-  return $ case useURI uri of
-    Nothing -> error $ "Invalid address: " <> show address
-    Just (Left (u, p)) -> Left (OwtClient u p)
-    Just (Right (u, p)) -> Right (OwtClient u p)
 
 cliParser :: ParserInfo (Text, Text, Text, Bool, Bool, Either GET POST)
 cliParser =
