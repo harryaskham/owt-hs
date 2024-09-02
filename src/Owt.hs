@@ -160,6 +160,8 @@ type OwtStreamHandler m a =
 
 type OwtStream sm m a = OwtStreamHandler sm a -> m a
 
+type OwtStreamIO a = OwtStream IO IO a
+
 instance (MonadIO m) => MonadHttp (ConduitM i o (ResourceT m)) where
   handleHttpException = liftIO . throwIO
 
