@@ -187,6 +187,6 @@ instance
           (owtMethod @method)
           (client ^. owtClientAddress)
           (owtRequestBody @method request)
-          (owtOptions @method client request)
+          (owtOptions @method client request <> responseTimeout (1000000 * 300))
           (\request manager -> bracketP (L.responseOpen request manager) L.responseClose responseBodySource)
           .| handler
