@@ -5,7 +5,6 @@ import Data.Text qualified as T
 import Network.HTTP.Req
 import Options.Applicative
 import Owt
-import Text.URI
 
 cliParser :: ParserInfo (Text, Text, Text, Bool, Bool, Either GET POST)
 cliParser =
