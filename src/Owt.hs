@@ -98,6 +98,17 @@ instance OwtMethod GET where
 instance OwtMethod POST where
   owtMethod = POST
 
+base64EncodeText :: Text -> Text
+base64EncodeText = B64.extractBase64 . B64.encodeBase64 . TE.encodeUtf8
+
+base64EncodeJSONPython :: (ToJSON a) => a -> Text
+base64EncodeJSONPython = base64EncodeText . jsonToPython . TE.decodeUtf8 . BSL.toStrict . A.encode
+
+jsonToPython :: Text -> Text
+jsonToPython = fixBooleans
+  where
+    fixBooleans = T.replace ":true" ":True" . T.replace ":false" ":False"
+
 class
   ( HttpMethod method,
     MonadBaseControl IO m
@@ -109,8 +120,8 @@ class
   owt code kwargs client = do
     let request =
           OwtRequest
-            { _owtRequestCodeB64 = B64.extractBase64 $ B64.encodeBase64 $ TE.encodeUtf8 code,
-              _owtRequestKwargsB64 = B64.extractBase64 $ B64.encodeBase64 $ BSL.toStrict . A.encode $ kwargs,
+            { _owtRequestCodeB64 = base64EncodeText code,
+              _owtRequestKwargsB64 = base64EncodeJSONPython kwargs,
               _owtRequestFnName = "run"
             }
     owt' @method @out @m @client request client
