@@ -101,13 +101,13 @@ instance OwtMethod POST where
 base64EncodeText :: Text -> Text
 base64EncodeText = B64.extractBase64 . B64.encodeBase64 . TE.encodeUtf8
 
-base64EncodeJSONPython :: (ToJSON a) => a -> Text
-base64EncodeJSONPython = base64EncodeText . jsonToPython . TE.decodeUtf8 . BSL.toStrict . A.encode
+class (ToJSON a) => ToPython a where
+  toPython :: a -> Text
 
-jsonToPython :: Text -> Text
-jsonToPython = fixBooleans
-  where
-    fixBooleans = T.replace ":true" ":True" . T.replace ":false" ":False"
+instance (ToJSON a) => ToPython a where
+  toPython = fixBooleans . TE.decodeUtf8 . BSL.toStrict . A.encode
+    where
+      fixBooleans = T.replace ":true" ":True" . T.replace ":false" ":False"
 
 class
   ( HttpMethod method,
@@ -115,13 +115,13 @@ class
   ) =>
   Owt (method :: Type) out m client
   where
-  owt :: (ToJSON kwargs) => Text -> kwargs -> client -> m out
-  default owt :: (ToJSON kwargs) => Text -> kwargs -> client -> m out
+  owt :: (ToPython kwargs) => Text -> kwargs -> client -> m out
+  default owt :: (ToPython kwargs) => Text -> kwargs -> client -> m out
   owt code kwargs client = do
     let request =
           OwtRequest
             { _owtRequestCodeB64 = base64EncodeText code,
-              _owtRequestKwargsB64 = base64EncodeJSONPython kwargs,
+              _owtRequestKwargsB64 = base64EncodeText (toPython kwargs),
               _owtRequestFnName = "run"
             }
     owt' @method @out @m @client request client
