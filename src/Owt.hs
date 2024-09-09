@@ -23,6 +23,108 @@ import Network.HTTP.Req hiding (decompress)
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Relude.Unsafe qualified as U
 import Text.URI
+import Web.HttpApiData
+
+class (ToJSON a) => ToPython a where
+  toPython :: a -> Text
+  default toPython :: (a ~ Text) => a -> Text
+  toPython = id
+
+instance (ToJSON a) => ToPython a where
+  toPython = fixBooleans . TE.decodeUtf8 . BSL.toStrict . A.encode
+    where
+      fixBooleans = T.replace ":true" ":True" . T.replace ":false" ":False"
+
+base64EncodeText :: Text -> Text
+base64EncodeText = B64.extractBase64 . B64.encodeBase64 . TE.encodeUtf8
+
+base64DecodeText :: Text -> Text
+base64DecodeText = TE.decodeUtf8 . B64.decodeBase64 . (B64.assertBase64 @'B64.StdPadded) . TE.encodeUtf8
+
+newtype Code = Code {unCode :: Text} deriving (Show, Eq, ToJSON, FromJSON, Generic)
+
+newtype CodeB64 = CodeB64 {unCodeB64 :: Text} deriving (Show, Eq, ToJSON, FromJSON, Generic)
+
+instance ToHttpApiData CodeB64 where
+  toUrlPiece = unCodeB64
+
+class HasCode c where
+  codeText :: c -> Text
+  default codeText :: c -> Text
+  codeText = unCode . code
+
+  code :: c -> Code
+  default code :: c -> Code
+  code = Code . codeText
+
+  codeB64 :: c -> CodeB64
+  default codeB64 :: c -> CodeB64
+  codeB64 = CodeB64 . base64EncodeText . codeText
+
+instance HasCode Code where
+  code = id
+
+instance HasCode CodeB64 where
+  codeText = base64DecodeText . unCodeB64
+
+instance HasCode Text where
+  code = Code
+
+newtype Kwargs = Kwargs {unKwargs :: Text} deriving (Show, Eq, ToJSON, FromJSON, Generic)
+
+newtype KwargsB64 = KwargsB64 {unKwargsB64 :: Text} deriving (Show, Eq, ToJSON, FromJSON, Generic)
+
+instance ToHttpApiData KwargsB64 where
+  toUrlPiece = unKwargsB64
+
+class HasKwargs a where
+  kwargsText :: a -> Text
+  default kwargsText :: a -> Text
+  kwargsText = base64DecodeText . unKwargsB64 . kwargsB64
+
+  kwargs :: a -> Kwargs
+  default kwargs :: (ToPython a) => a -> Kwargs
+  kwargs = Kwargs . toPython
+
+  kwargsB64 :: a -> KwargsB64
+  default kwargsB64 :: a -> KwargsB64
+  kwargsB64 = KwargsB64 . base64EncodeText . unKwargs . kwargs
+
+instance HasKwargs Kwargs where
+  kwargs = id
+
+instance HasKwargs KwargsB64 where
+  kwargsB64 = id
+
+instance HasKwargs Text where
+  kwargs = Kwargs
+
+toKwargs :: (ToPython a) => a -> Kwargs
+toKwargs = Kwargs . toPython
+
+newtype FnName = FnName {unFnName :: Text} deriving (Show, Eq, ToJSON, FromJSON, Generic)
+
+instance ToHttpApiData FnName where
+  toUrlPiece = unFnName
+
+class HasFnName a where
+  fnName :: a -> FnName
+
+class (HasCode o, HasKwargs o, HasFnName o) => IsOwt o
+
+instance (HasCode o, HasKwargs o, HasFnName o) => IsOwt o
+
+data SimpleOwt c k where
+  SimpleOwt :: (HasCode c, HasKwargs k) => c -> k -> SimpleOwt c k
+
+instance (HasCode c) => HasCode (SimpleOwt c k) where
+  codeText (SimpleOwt c _) = codeText c
+
+instance HasKwargs (SimpleOwt c k) where
+  kwargs (SimpleOwt _ k) = kwargs k
+
+instance HasFnName (SimpleOwt c k) where
+  fnName = const $ FnName "run"
 
 data OwtRequest = OwtRequest
   { _owtRequestCodeB64 :: !Text,
@@ -36,13 +138,14 @@ data OwtRequest = OwtRequest
 
 makeLenses ''OwtRequest
 
-instance Default OwtRequest where
-  def =
-    OwtRequest
-      { _owtRequestCodeB64 = "",
-        _owtRequestKwargsB64 = "",
-        _owtRequestFnName = "run"
-      }
+instance HasCode OwtRequest where
+  codeB64 = CodeB64 . view owtRequestKwargsB64
+
+instance HasKwargs OwtRequest where
+  kwargsB64 = KwargsB64 . view owtRequestKwargsB64
+
+instance HasFnName OwtRequest where
+  fnName = FnName . view owtRequestFnName
 
 data OwtClient scheme = OwtClient
   { _owtClientAddress :: !(Url scheme),
@@ -63,25 +166,26 @@ newtype OwtError = OwtError Text deriving (Show, Eq)
 
 instance Exception OwtError
 
-class OwtOptions method scheme a where
-  owtOptions :: a -> OwtRequest -> Option scheme
+class OwtOptions method scheme client where
+  owtOptions :: (IsOwt o) => client -> o -> Option scheme
 
 instance OwtOptions POST scheme (OwtClient scheme) where
   owtOptions client _ = client ^. owtClientPort
 
 instance OwtOptions GET scheme (OwtClient scheme) where
-  owtOptions client request =
+  -- owtOptions :: (IsOwt o k) => client -> o -> Option scheme
+  owtOptions client o =
     client ^. owtClientPort
-      <> ("code_b64" =: (request ^. owtRequestCodeB64))
-      <> ("fn_name" =: (request ^. owtRequestFnName))
-      <> ("kwargs_b64" =: (request ^. owtRequestKwargsB64))
+      <> ("code_b64" =: codeB64 o)
+      <> ("kwargs_b64" =: kwargsB64 o)
+      <> ("fn_name" =: fnName o)
 
-type family OwtRequestBodyF (method :: Type) where
-  OwtRequestBodyF GET = NoReqBody
-  OwtRequestBodyF POST = ReqBodyJson OwtRequest
+type family OwtRequestBodyF (method :: Type) a where
+  OwtRequestBodyF GET _ = NoReqBody
+  OwtRequestBodyF POST a = ReqBodyJson a
 
 class (HttpMethod method) => OwtRequestBody method where
-  owtRequestBody :: OwtRequest -> OwtRequestBodyF method
+  owtRequestBody :: (IsOwt o) => o -> OwtRequestBodyF method o
 
 instance OwtRequestBody GET where
   owtRequestBody = const NoReqBody
@@ -98,16 +202,13 @@ instance OwtMethod GET where
 instance OwtMethod POST where
   owtMethod = POST
 
-base64EncodeText :: Text -> Text
-base64EncodeText = B64.extractBase64 . B64.encodeBase64 . TE.encodeUtf8
-
-class (ToJSON a) => ToPython a where
-  toPython :: a -> Text
-
-instance (ToJSON a) => ToPython a where
-  toPython = fixBooleans . TE.decodeUtf8 . BSL.toStrict . A.encode
-    where
-      fixBooleans = T.replace ":true" ":True" . T.replace ":false" ":False"
+toRequest :: (IsOwt o) => o -> OwtRequest
+toRequest o =
+  OwtRequest
+    { _owtRequestCodeB64 = unCodeB64 $ codeB64 o,
+      _owtRequestKwargsB64 = unKwargsB64 $ kwargsB64 o,
+      _owtRequestFnName = unFnName $ fnName o
+    }
 
 class
   ( HttpMethod method,
@@ -115,16 +216,9 @@ class
   ) =>
   Owt (method :: Type) out m client
   where
-  owt :: (ToPython kwargs) => Text -> kwargs -> client -> m out
-  default owt :: (ToPython kwargs) => Text -> kwargs -> client -> m out
-  owt code kwargs client = do
-    let request =
-          OwtRequest
-            { _owtRequestCodeB64 = base64EncodeText code,
-              _owtRequestKwargsB64 = base64EncodeText (toPython kwargs),
-              _owtRequestFnName = "run"
-            }
-    owt' @method @out @m @client request client
+  owt :: (IsOwt o) => client -> o -> m out
+  default owt :: (IsOwt o) => client -> o -> m out
+  owt client o = owt' @method @out @m @client (toRequest o) client
 
   owt' :: OwtRequest -> client -> m out
 
@@ -144,8 +238,8 @@ instance
     OwtMethod method,
     OwtRequestBody method,
     OwtOptions method scheme (OwtClient scheme),
-    HttpBody (OwtRequestBodyF method),
-    HttpBodyAllowed (AllowsBody method) (ProvidesBody (OwtRequestBodyF method)),
+    HttpBody (OwtRequestBodyF method OwtRequest),
+    HttpBodyAllowed (AllowsBody method) (ProvidesBody (OwtRequestBodyF method OwtRequest)),
     MonadBaseControl IO m,
     MonadIO m
   ) =>
@@ -178,10 +272,10 @@ instance (MonadIO m) => MonadHttp (ConduitM i o (ResourceT m)) where
 
 instance
   ( HttpMethod method,
-    HttpBody (OwtRequestBodyF method),
+    HttpBody (OwtRequestBodyF method OwtRequest),
     HttpBodyAllowed
       (AllowsBody method)
-      (ProvidesBody (OwtRequestBodyF method)),
+      (ProvidesBody (OwtRequestBodyF method OwtRequest)),
     OwtMethod method,
     OwtRequestBody method,
     OwtOptions method scheme (OwtClient scheme),

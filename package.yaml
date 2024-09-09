@@ -23,6 +23,7 @@ dependencies:
   - lens
   - data-default
   - bytestring
+  - http-api-data
   - lifted-base
   - transformers-base
   - monad-control

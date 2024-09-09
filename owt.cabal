@@ -93,6 +93,7 @@ library
     , data-default
     , deriving-aeson
     , exceptions
+    , http-api-data
     , http-client
     , http-conduit
     , http-types
@@ -194,6 +195,7 @@ executable owt
     , data-default
     , deriving-aeson
     , exceptions
+    , http-api-data
     , http-client
     , http-conduit
     , http-types
