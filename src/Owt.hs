@@ -109,6 +109,8 @@ instance ToHttpApiData FnName where
 
 class HasFnName a where
   fnName :: a -> FnName
+  default fnName :: a -> FnName
+  fnName = const $ FnName "run"
 
 class (HasCode o, HasKwargs o, HasFnName o) => IsOwt o
 
@@ -123,8 +125,7 @@ instance (HasCode c) => HasCode (SimpleOwt c k) where
 instance HasKwargs (SimpleOwt c k) where
   kwargs (SimpleOwt _ k) = kwargs k
 
-instance HasFnName (SimpleOwt c k) where
-  fnName = const $ FnName "run"
+instance HasFnName (SimpleOwt c k)
 
 data OwtRequest = OwtRequest
   { _owtRequestCodeB64 :: !Text,
