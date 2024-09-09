@@ -128,9 +128,9 @@ instance HasKwargs (SimpleOwt c k) where
 instance HasFnName (SimpleOwt c k)
 
 data OwtRequest = OwtRequest
-  { _owtRequestCodeB64 :: !Text,
-    _owtRequestKwargsB64 :: !Text,
-    _owtRequestFnName :: !Text
+  { _owtRequestCodeB64 :: !CodeB64,
+    _owtRequestKwargsB64 :: !KwargsB64,
+    _owtRequestFnName :: !FnName
   }
   deriving (Show, Eq, Generic)
   deriving
@@ -140,13 +140,21 @@ data OwtRequest = OwtRequest
 makeLenses ''OwtRequest
 
 instance HasCode OwtRequest where
-  codeB64 = CodeB64 . view owtRequestKwargsB64
+  codeB64 = view owtRequestCodeB64
 
 instance HasKwargs OwtRequest where
-  kwargsB64 = KwargsB64 . view owtRequestKwargsB64
+  kwargsB64 = view owtRequestKwargsB64
 
 instance HasFnName OwtRequest where
-  fnName = FnName . view owtRequestFnName
+  fnName = view owtRequestFnName
+
+toRequest :: (IsOwt o) => o -> OwtRequest
+toRequest o =
+  OwtRequest
+    { _owtRequestCodeB64 = codeB64 o,
+      _owtRequestKwargsB64 = kwargsB64 o,
+      _owtRequestFnName = fnName o
+    }
 
 data OwtClient scheme = OwtClient
   { _owtClientAddress :: !(Url scheme),
@@ -202,14 +210,6 @@ instance OwtMethod GET where
 
 instance OwtMethod POST where
   owtMethod = POST
-
-toRequest :: (IsOwt o) => o -> OwtRequest
-toRequest o =
-  OwtRequest
-    { _owtRequestCodeB64 = unCodeB64 $ codeB64 o,
-      _owtRequestKwargsB64 = unKwargsB64 $ kwargsB64 o,
-      _owtRequestFnName = unFnName $ fnName o
-    }
 
 class
   ( HttpMethod method,
