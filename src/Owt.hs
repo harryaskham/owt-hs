@@ -284,7 +284,7 @@ instance
     MonadIO m,
     MonadUnliftIO m
   ) =>
-  Owt method (OwtStream m m a) m (OwtClient scheme)
+  Owt method (OwtStream m a) m (OwtClient scheme)
   where
   owt' request client = return $ \(handler :: OwtStreamHandler m a) ->
     handleReqError $
