@@ -264,9 +264,9 @@ instance (HttpMethod method, MonadBaseControl IO m, Owt method ByteString m clie
 type OwtStreamHandler m a =
   ConduitT ByteString Void (ResourceT m) a
 
-type OwtStream sm m a = OwtStreamHandler sm a -> m a
+type OwtStream' sm m a = OwtStreamHandler sm a -> m a
 
-type OwtStreamIO a = OwtStream IO IO a
+type OwtStream m a = OwtStream' m m a
 
 instance (MonadIO m) => MonadHttp (ConduitM i o (ResourceT m)) where
   handleHttpException = liftIO . throwIO

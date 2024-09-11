@@ -61,8 +61,8 @@ main = do
   if stream
     then do
       let owtF = case method of
-            Left GET -> owt @GET @(OwtStream IO IO ()) client
-            Right POST -> owt @POST @(OwtStream IO IO ()) client
+            Left GET -> owt @GET @(OwtStream IO ()) client
+            Right POST -> owt @POST @(OwtStream IO ()) client
       go <- owtF (SimpleOwt code kwargs)
       go $ foldMapMC putBS
     else do
