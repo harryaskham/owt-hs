@@ -11,11 +11,13 @@
       let
         pkgs = import nixpkgs { inherit system; config = { allowBroken = true; }; };
         packageName = "owt";
-        hsPkgs = with pkgs; haskell.packages.ghc981.override {
-          overrides = final: prev: {
-            req-conduit = haskell.lib.dontCheck prev.req-conduit;
-          };
-        };
+        hsPkgsPrev = pkgs.haskellPackages;
+        hsPkgs = hsPkgsPrev;
+        # hsPkgs = with pkgs; hsPkgsPrev.override {
+        #   overrides = final: prev: {
+        #     req-conduit = haskell.lib.dontCheck prev.req-conduit;
+        #   };
+        # };
       in with pkgs; rec {
         packages.${packageName} =
           hsPkgs.callCabal2nixWithOptions "${packageName}" ./. "--no-check" {  };
