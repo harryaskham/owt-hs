@@ -43,7 +43,8 @@ dependencies:
   - modern-uri
   - req
   - optparse-applicative
-  - base64
+  - name: base64
+    version: ">= 1.0"
 
 default-extensions:
   - OverloadedStrings
