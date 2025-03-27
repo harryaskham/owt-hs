@@ -163,13 +163,39 @@ data OwtClient scheme = OwtClient
 
 makeLenses ''OwtClient
 
-mkOwtClient :: (MonadThrow m) => Text -> m (Either (OwtClient 'Http) (OwtClient 'Https))
-mkOwtClient address = do
-  uri <- mkURI address
-  return $ case useURI uri of
-    Nothing -> error $ "Invalid address: " <> show address
-    Just (Left (u, p)) -> Left (OwtClient u p)
-    Just (Right (u, p)) -> Right (OwtClient u p)
+newtype OwtClientE = OwtClientE (Either (OwtClient 'Http) (OwtClient 'Https))
+
+data InferScheme = InferScheme
+
+type family OwtClientByAddress address where
+  OwtClientByAddress (Url 'Http) = OwtClient 'Http
+  OwtClientByAddress (Url 'Https) = OwtClient 'Https
+  OwtClientByAddress (Url 'Http, Int) = OwtClient 'Http
+  OwtClientByAddress (Url 'Https, Int) = OwtClient 'Https
+  OwtClientByAddress Text = OwtClientE
+
+class MkOwtClient address m where
+  mkOwtClient :: address -> m (OwtClientByAddress address)
+
+instance MonadThrow m => MkOwtClient (Url 'Http) m where
+  mkOwtClient address = mkOwtClient (address, 80 :: Int)
+
+instance MonadThrow m => MkOwtClient (Url 'Http, Int) m where
+  mkOwtClient (address, portN) = return $ OwtClient address (port portN)
+
+instance MonadThrow m => MkOwtClient (Url 'Https) m where
+  mkOwtClient address = mkOwtClient (address, 443 :: Int)
+
+instance MonadThrow m => MkOwtClient (Url 'Https, Int) m where
+  mkOwtClient (address, portN) = return $ OwtClient address (port portN)
+
+instance MonadThrow m => MkOwtClient Text m where
+  mkOwtClient address = do
+    uri <- mkURI address
+    return $ case useURI uri of
+      Nothing -> error $ "Invalid HTTP(S) address: " <> show address
+      Just (Left (u, p)) -> OwtClientE (Left (OwtClient u p))
+      Just (Right (u, p)) -> OwtClientE (Right (OwtClient u p))
 
 newtype OwtError = OwtError Text deriving (Show, Eq)
 
@@ -223,9 +249,9 @@ class
 
   owt' :: OwtRequest -> client -> m out
 
-instance (Owt method out m clientA, Owt method out m clientB) => Owt method out m (Either clientA clientB) where
-  owt' request (Left client) = owt' @method request client
-  owt' request (Right client) = owt' @method request client
+instance (HttpMethod method, MonadBaseControl IO m, Owt method out m (OwtClient 'Http), Owt method out m (OwtClient 'Https)) => Owt method out m (OwtClientE) where
+  owt' request (OwtClientE (Left client)) = owt' @method request client
+  owt' request (OwtClientE (Right client)) = owt' @method request client
 
 handleReqError :: (MonadBaseControl IO m) => m a -> m a
 handleReqError action = do
